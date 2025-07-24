@@ -3,7 +3,7 @@ import sys
 import json
 
 import requests
-from requests import Request, Session
+from requests import Session
 from requests.adapters import HTTPAdapter
 from requests.packages.urllib3.util.retry import Retry
 
@@ -12,6 +12,16 @@ from urllib.parse import urljoin
 import logging
 import logzero
 from logzero import logger
+
+
+class MistAuthenticationError(Exception):
+    """Raised when authentication fails."""
+    pass
+
+
+class MistAPIError(Exception):
+    """Raised when API calls fail."""
+    pass
 
 
 clouds = {
@@ -124,7 +134,7 @@ class MistiFi:
             if not self.password:
                 #
                 # If password was not provided, get it from user input
-                self.password = getpass.getpass(f"Mist password for user `{self.username}` required:\x20".format(self.username))
+                self.password = getpass.getpass(f"Mist password for user `{self.username}` required:\x20")
 
             # Then set it in the login payload outside of conditional
             # as the password might have been passed in with the object
@@ -150,7 +160,7 @@ class MistiFi:
         url_logout = self._resource_url(uri="/logout")
         resp = self._api_call("POST", url_logout)
 
-        logging.debug(f'Logout response: {resp}')
+        logger.debug(f'Logout response: {resp}')
 
         # Reset logging to ERROR as this method is called through _api_call and
         # is not reset as if it were with by calling resource
@@ -197,7 +207,7 @@ class MistiFi:
         try:
             return clouds[cloud.upper()]
         except KeyError:
-            logging.exception(f'Not a valid entry {list(clouds.keys())}. Using "US" as default.')
+            logger.exception(f'Not a valid entry {list(clouds.keys())}. Using "US" as default.')
             return clouds["US"]
 
     def _user_login(self, login_payload):
@@ -208,13 +218,12 @@ class MistiFi:
         login_payload: dict
             A dict with username and password credentials
 
-        Return
+        Raises
         ------
-            None
+        MistAuthenticationError
+            When login fails
         """
-        error_resp = {'err': True}
-
-        logger.info(f'Calling _user_login()')
+        logger.info('Calling _user_login()')
 
         url_login = self._resource_url(uri='/login')
 
@@ -227,33 +236,28 @@ class MistiFi:
         resp_text = resp.text
         resp_jtext = json.loads(resp_text)
 
-        # Return nothing if status code is higher than 400
+        # Handle error responses
         if resp_status_code >= 400:
-
-            if 'detail' in resp_jtext:
-                error_resp['detail'] = resp_jtext['detail']
-
+            error_detail = resp_jtext.get('detail', 'Unknown authentication error')
             logger.error(f'Login response code: {resp.status_code}')
-            logger.error(f"Response Error:\n{error_resp}")
-            exit(0)
-        # Otherwise return the JSON response
-        else:
-            jresponse = resp.json()
-            logger.info(f'Login response code: {resp.status_code}')
-            logger.debug(f'Response HEAD: {resp_head}')
-            logger.debug(f'The response: {jresponse}')
-            return jresponse
-
-        # Need to update the headers with the CSRF token to be able
-        # to POST, PUT or DELETE in further requests
+            logger.error(f"Response Error: {error_detail}")
+            raise MistAuthenticationError(f"Login failed: {error_detail}")
+        
+        # Handle successful login
+        jresponse = resp.json()
+        logger.info(f'Login response code: {resp.status_code}')
+        logger.debug(f'Response HEAD: {resp_head}')
+        logger.debug(f'The response: {jresponse}')
+        
+        # Update headers with CSRF token for session-based authentication
         try:
             resp_csrftoken = resp.cookies['csrftoken']
             self.session.headers['X-CSRFTOKEN'] = resp_csrftoken
+            logger.debug(f'Session headers updated with X-CSRFTOKEN: {self.session.headers}')
         except KeyError:
-            logger.exception("'Set-Cookie' not in header response")
-            return
-
-        logger.debug(f'Session headers should include X-CSRFTOKEN token: {self.session.headers}')
+            logger.warning("No CSRF token found in response cookies")
+        
+        return jresponse
 
     def _api_call(self, method, url, **kwargs):
         """The API call handler.
@@ -277,12 +281,12 @@ class MistiFi:
         Returns:
         --------
         The response in JSON format if status code is below 400
-        None if status >=400. Error can be seen with logging
+        
+        Raises:
+        -------
+        MistAPIError
+            When API call fails with status code >= 400
         """
-        # Maybe I should return this if code !=200????
-        # Figure it out later
-        error_resp = {'err': True}
-
         logger.info("Calling _api_call()")
         logger.info(f"Method is: {method.upper()}")
         logger.info(f"Calling URL: {url}")
@@ -298,20 +302,17 @@ class MistiFi:
 
         logger.info(f"Response status code: {resp_status_code}")
 
-        # Return nothing if status code is higher than 400
+        # Handle error responses
         if resp_status_code >= 400:
-
-            if 'detail' in resp_jtext:
-                error_resp['detail'] = resp_jtext['detail']
-
-            logger.error(f"Response Error:\n{resp_text}")
-            return
-        # Otherwise return the JSON response
-        else:
-            jresponse = response.json()
-            logger.debug(f'Response HEAD: {resp_head}')
-            logger.debug(f'The response: {jresponse}')
-            return jresponse
+            error_detail = resp_jtext.get('detail', 'Unknown API error')
+            logger.error(f"API Error ({resp_status_code}): {error_detail}")
+            raise MistAPIError(f"API call failed ({resp_status_code}): {error_detail}")
+        
+        # Handle successful responses
+        jresponse = response.json()
+        logger.debug(f'Response HEAD: {resp_head}')
+        logger.debug(f'The response: {jresponse}')
+        return jresponse
 
     def _resource_url(self, **kwargs):
         """The resource URL formatter
