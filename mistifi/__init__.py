@@ -1,1 +1,1 @@
-from .mistifi import MistiFi
+from .mistifi import MistiFi, MistAuthenticationError, MistAPIError, MistNetworkError

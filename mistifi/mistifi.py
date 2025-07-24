@@ -24,6 +24,11 @@ class MistAPIError(Exception):
     pass
 
 
+class MistNetworkError(Exception):
+    """Raised when network connectivity issues occur - should cause application exit."""
+    pass
+
+
 clouds = {
     "US": "api.mist.com",
     "EU": "api.eu.mist.com",
@@ -187,7 +192,16 @@ class MistiFi:
 
         # Setup the retry strategy
         # https://findwork.dev/blog/advanced-usage-python-requests-timeouts-retries-hooks/
-        retries = Retry(total=3, backoff_factor=1, status_forcelist=[429, 500, 502, 503, 504])
+        retries = Retry(
+            total=3,                    # Total retry attempts
+            read=3,                     # Read timeout retries
+            connect=2,                  # Connection retries (fewer for faster fail)
+            backoff_factor=0.3,         # Exponential backoff: 0.3, 0.6, 1.2 seconds
+            status_forcelist=[408, 429, 500, 502, 503, 504, 520, 522, 524],
+            allowed_methods=["HEAD", "GET", "PUT", "DELETE", "OPTIONS", "TRACE", "POST"],
+            raise_on_redirect=False,    # Don't fail on redirects
+            raise_on_status=False,      # Let our code handle status codes
+        )
         self.session.mount(self.mist_base_api_url, HTTPAdapter(max_retries=retries))
 
         # Handle response status
@@ -259,8 +273,8 @@ class MistiFi:
         
         return jresponse
 
-    def _api_call(self, method, url, **kwargs):
-        """The API call handler.
+    def _api_call(self, method, url, timeout=30, **kwargs):
+        """The API call handler with enhanced error handling.
 
         This method is used by `resource()`. kwargs passed in get passed to the
         requests.session instance
@@ -272,6 +286,9 @@ class MistiFi:
 
         url: `str`
             URL with the endpoint included
+            
+        timeout: `int`, optional, default: 30
+            Request timeout in seconds
 
         Keyword Args
         ------------
@@ -284,6 +301,10 @@ class MistiFi:
         
         Raises:
         -------
+        MistNetworkError
+            When network connectivity issues occur
+        MistAuthenticationError
+            When authentication fails
         MistAPIError
             When API call fails with status code >= 400
         """
@@ -291,26 +312,38 @@ class MistiFi:
         logger.info(f"Method is: {method.upper()}")
         logger.info(f"Calling URL: {url}")
 
-        # This is where the call happens
-        response = getattr(self.session, method.lower())(url, **kwargs)
+        try:
+            # This is where the call happens
+            response = getattr(self.session, method.lower())(url, timeout=timeout, **kwargs)
+        except requests.exceptions.ConnectionError as e:
+            if "Name or service not known" in str(e) or "nodename nor servname provided" in str(e):
+                raise MistNetworkError("DNS resolution failed - check internet connection")
+            # Other connection errors already handled by Retry
+            raise MistNetworkError(f"Network connection failed: {e}")
+        except requests.exceptions.Timeout:
+            raise MistNetworkError("Request timeout - check network connectivity")
 
-        # Some response variables here
-        resp_head = response.headers
-        resp_status_code = response.status_code
-        resp_text = response.text
-        resp_jtext = json.loads(resp_text)
+        logger.info(f"Response status code: {response.status_code}")
 
-        logger.info(f"Response status code: {resp_status_code}")
-
-        # Handle error responses
-        if resp_status_code >= 400:
-            error_detail = resp_jtext.get('detail', 'Unknown API error')
-            logger.error(f"API Error ({resp_status_code}): {error_detail}")
-            raise MistAPIError(f"API call failed ({resp_status_code}): {error_detail}")
+        # Handle error responses (after all retries exhausted)
+        if response.status_code == 401:
+            raise MistAuthenticationError("Authentication failed - check token")
+        elif response.status_code >= 400:
+            try:
+                error_detail = response.json().get('detail', 'Unknown API error')
+            except (json.JSONDecodeError, ValueError):
+                error_detail = response.text or 'Unknown API error'
+            
+            logger.error(f"API Error ({response.status_code}): {error_detail}")
+            raise MistAPIError(f"API call failed ({response.status_code}): {error_detail}")
         
         # Handle successful responses
-        jresponse = response.json()
-        logger.debug(f'Response HEAD: {resp_head}')
+        try:
+            jresponse = response.json()
+        except (json.JSONDecodeError, ValueError):
+            raise MistAPIError("Invalid JSON response from server")
+            
+        logger.debug(f'Response HEAD: {response.headers}')
         logger.debug(f'The response: {jresponse}')
         return jresponse
 
