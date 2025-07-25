@@ -34,8 +34,7 @@ clouds = {
     "EU": "api.eu.mist.com",
 }
 
-# Set the default logging level to ERROR
-logzero.loglevel(logging.ERROR)
+# Note: Default logging level removed to allow user control
 
 class MistiFi:
     """All Mist API URIs are found on https://api.mist.com/api/v1/docs/Home
@@ -149,8 +148,7 @@ class MistiFi:
             # Finally login
             self._user_login(self.login_payload)
 
-        # Reset the log level to ERROR only
-        logzero.loglevel(logging.ERROR)
+        # Note: Logging level is no longer automatically reset to allow user control
 
     def logout(self):
         """Logs out of the cloud, which is not really
@@ -167,9 +165,7 @@ class MistiFi:
 
         logger.debug(f'Logout response: {resp}')
 
-        # Reset logging to ERROR as this method is called through _api_call and
-        # is not reset as if it were with by calling resource
-        logzero.loglevel(logging.ERROR)
+        # Note: Logging level is no longer automatically reset to allow user control
 
         return resp
 
@@ -219,9 +215,12 @@ class MistiFi:
         logger.info("Calling _select_cloud()")
 
         try:
-            return clouds[cloud.upper()]
+            selected_cloud = clouds[cloud.upper()]
+            logger.info(f"Selected cloud: {cloud.upper()} -> {selected_cloud}")
+            return selected_cloud
         except KeyError:
             logger.exception(f'Not a valid entry {list(clouds.keys())}. Using "US" as default.')
+            logger.info(f"Selected cloud: US (default) -> {clouds['US']}")
             return clouds["US"]
 
     def _user_login(self, login_payload):
@@ -440,7 +439,7 @@ class MistiFi:
         # Remove the last '/' if in the URL as the call
         # won't work with it.
         url = url.rstrip('/')
-        logger.debug(f"URL to endpoint: {url}")
+        logger.info(f"URL to endpoint: {url}")
 
         return url
 
@@ -469,7 +468,7 @@ class MistiFi:
         if 'params' in kwargs:
             params = kwargs['params']
 
-        logger.debug(f"Returned params: {params}")
+        logger.info(f"Returned params: {params}")
 
         return params
 
@@ -513,8 +512,7 @@ class MistiFi:
         # Get the JSON response
         jresp = self._api_call(method, resource_url, params=params, json=jpayload)
 
-        # Reset logging to ERROR
-        logzero.loglevel(logging.ERROR)
+        # Note: Logging level is no longer automatically reset to allow user control
 
         return jresp
 
