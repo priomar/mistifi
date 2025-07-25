@@ -680,6 +680,18 @@ class MistiFi:
         """
         logger.info("Calling resource()")
         logger.debug(f'kwargs in: {kwargs}')
+        
+        # Phase 1 & 2: Validate method parameter
+        self._validate_required_params('resource', ['method'], method=method, **kwargs)
+        self._validate_param_types('resource', {'method': str}, method=method, **kwargs)
+        
+        # Phase 3: Sanitize inputs
+        if 'org_id' in kwargs:
+            kwargs['org_id'] = self._sanitize_id(kwargs['org_id'], 'org_id', 'resource')
+        if 'site_id' in kwargs:
+            kwargs['site_id'] = self._sanitize_id(kwargs['site_id'], 'site_id', 'resource')
+        if 'uri' in kwargs:
+            kwargs['uri'] = self._sanitize_uri(kwargs['uri'], 'resource')
 
         # Get the params from the passed in kwargs
         params = self._params(**kwargs)
