@@ -349,7 +349,7 @@ class MistiFi:
     def _resource_url(self, **kwargs):
         """The resource URL formatter
 
-        Will return the properly formated URL with any provided org_id, site_id,
+        Will return the properly formatted URL with any provided org_id, site_id,
         uri, etc, or a combination of them all.
 
         URL is returned in a Mist defines hierarchy with org_id first, then site_id,
@@ -358,31 +358,29 @@ class MistiFi:
         Current special kwargs are:
             ``org_id``, ``site_id``, ``map_id``, ``wlan_id``, ``uri``, ``apitoken_id``, ``params``
 
-        Args
-        ----
-        org_id: `str`
+        Parameters
+        ----------
+        org_id : str, optional
             The Organization ID of a specific organization
-        site_id: `str`
+        site_id : str, optional
             The Site ID of a specific site
-        map_id: `str`
+        map_id : str, optional
             The Map ID of a specific map
-        wlan_id: `str`
+        wlan_id : str, optional
             The WLAN ID of a specific WLAN
-        uri: `str`
+        uri : str, optional
             The endpoint resource, e.g. '/self', or 'self',
             or '/self/' will all work
-        apitoken_id: `str`
+        apitoken_id : str, optional
             The token ID of a specific user token
-
-        Keyword Args
-        ------------
-        various: `str`
-            Can be any additional value that will get added to the end
+        **kwargs : str, optional
+            Additional values that will get added to the end
             as .../valueX, or .../valueX/valueY if more passed in
 
         Returns
         -------
-        The full URL string to the requested endpoint
+        str
+            The full URL string to the requested endpoint
         """
         logger.info("Calling _resource_url()")
         logger.info(f"kwargs in: {kwargs}")
@@ -449,15 +447,17 @@ class MistiFi:
         Meant for parameters that get passed with the `params` attribute of
         requests.
 
-        Keyword Args:
-        -------------
-        params: `dict`
+        Parameters
+        ----------
+        **kwargs
+            Keyword arguments containing params dict
+        params : dict, optional
             A dict of keyword arguments that gets passed as params
             to the requests
 
-        Returns:
-        --------
-        params: `dict`
+        Returns
+        -------
+        dict
             The params dict of parameters to be passed with the request params attribute
         """
         logger.info("Calling _params()")
@@ -473,9 +473,7 @@ class MistiFi:
         return params
 
     def resource(self, method, jpayload=None, **kwargs):
-        """Actions the HTTP request
-
-        type defined with the `method`.
+        """Executes the HTTP request type defined with the method.
 
         This is the main function of the class, which does all the interfacing
         with the API. It can be called by its own with a valid HTTP method,
@@ -483,22 +481,26 @@ class MistiFi:
         this one for interfacing. The difference between the 2 approaches is
         shown in the Examples or README file.
 
-        Args:
-        -----
-        method: `str`
-            Either `GET` or `POST`. Case insensitive.
-        jpayload: dict, optional
-            JSON formated payload. Same as requests json sent with the body of
+        Parameters
+        ----------
+        method : str
+            Either GET or POST. Case insensitive.
+        jpayload : dict, optional
+            JSON formatted payload. Same as requests json sent with the body of
             the request.
+        **kwargs
+            These get passed to the _params() and _resource_url() methods, so read
+            what is accepted there.
 
-        Keyword Args
-        ------------
-        These get passed to the `_params()` and `_resource_url()` methods, so read
-        what is accepted there.
+        Returns
+        -------
+        dict
+            The JSON response with either the successful response or the error response.
 
-        Returns:
-        --------
-        The JSON response with either the successful response or the error response.
+        Raises
+        ------
+        MistAPIError
+            When API call fails with status code >= 400
         """
         logger.info("Calling resource()")
         logger.debug(f'kwargs in: {kwargs}')
@@ -526,18 +528,17 @@ class MistiFi:
         The URI inside the function is '/self' which gets
         added to the end of the URL.
 
-        Args
-        ----
-        method: str, default 'GET'
+        Parameters
+        ----------
+        method : str, default 'GET'
             A valid HTTP method, but only GET is allowed.
-
-        Keyword Args
-        ------------
-        As defined with the _params() and _resource_url() methods
+        **kwargs
+            As defined with the _params() and _resource_url() methods
 
         Returns
         -------
-        The JSON response from the resource() method
+        dict
+            The JSON response from the resource() method
         """
         logger.info('Calling whoami()')
         logger.info(f'kwargs in: {kwargs}')
@@ -556,27 +557,26 @@ class MistiFi:
         If passing in the 'apitoken_id' method is DELETE and that id gets
         deleted.
 
-        Args
-        ----
-        method: str, default 'GET'
+        Parameters
+        ----------
+        method : str, default 'GET'
             A valid HTTP method.
             If kwargs contains 'apitoken_id', the method changes to DELETE.
-
-        Keyword Args
-        ------------
-        As defined with the _params() and _resource_url() methods
+        **kwargs
+            As defined with the _params() and _resource_url() methods
 
         Returns
         -------
-        The JSON response from the resource() method
+        dict
+            The JSON response from the resource() method
         """
-        logger.info('Calling whoami()')
+        logger.info('Calling apitokens()')
         logger.info(f'kwargs in: {kwargs}')
 
         # API tokens are under /self
         kwargs['uri'] = '/self/apitokens'
 
-        # If we pass in the toklen ID the method
+        # If we pass in the token ID the method
         # can only be DELETE
         if 'apitoken_id' in kwargs:
             method = "DELETE"
@@ -589,19 +589,19 @@ class MistiFi:
         The URI inside the function is '/wlans' which gets
         added to the URL at the end
 
-        Args
-        ----
-        method: str, default 'GET'
+        Parameters
+        ----------
+        method : str, default 'GET'
             A valid HTTP method
-        jdata: dict, default None
-
-        Keyword Args
-        ------------
-        As defined with the _params() and _resource_url() methods
+        jdata : dict, optional
+            JSON data payload for the request
+        **kwargs
+            As defined with the _params() and _resource_url() methods
 
         Returns
         -------
-        The JSON response from the resource() method
+        dict
+            The JSON response from the resource() method
         """
         logger.info('Calling wlans()')
         logger.info(f'kwargs in: {kwargs}')
