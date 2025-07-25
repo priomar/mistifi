@@ -97,6 +97,9 @@ class MistiFi:
         # Other class attributes used later
         self.csrftoken = None
         self.mist_base_api_url = f'https://{self.cloud}/'
+        
+        # Parameter validation helpers
+        self._validation_enabled = True
 
     def comms(self):
         """The first method to be called to configure the session and to login to the Mist cloud.
@@ -149,6 +152,85 @@ class MistiFi:
             self._user_login(self.login_payload)
 
         # Note: Logging level is no longer automatically reset to allow user control
+
+    def _validate_required_params(self, method_name, required_params, **kwargs):
+        """Validate required parameters are present and valid.
+        
+        Parameters
+        ----------
+        method_name : str
+            Name of the calling method for error context
+        required_params : list
+            List of required parameter names
+        **kwargs
+            Parameters to validate
+            
+        Raises
+        ------
+        MistAPIError
+            When required parameters are missing or invalid
+        """
+        if not self._validation_enabled:
+            return
+            
+        missing = []
+        empty = []
+        
+        for param in required_params:
+            if param not in kwargs:
+                missing.append(param)
+            elif not kwargs[param] or (isinstance(kwargs[param], str) and not kwargs[param].strip()):
+                empty.append(param)
+        
+        if missing or empty:
+            available = [k for k in kwargs.keys() if k not in ['params']]
+            error_parts = []
+            
+            if missing:
+                error_parts.append(f"Missing required parameters: {missing}")
+            if empty:
+                error_parts.append(f"Empty parameters: {empty}")
+                
+            error_msg = f"{method_name}() - {'; '.join(error_parts)}"
+            if available:
+                error_msg += f". Available parameters: {available}"
+            else:
+                error_msg += ". No parameters provided"
+                
+            raise MistAPIError(error_msg)
+    
+    def _validate_param_types(self, method_name, param_types, **kwargs):
+        """Validate parameter types.
+        
+        Parameters
+        ----------
+        method_name : str
+            Name of the calling method for error context
+        param_types : dict
+            Dictionary of param_name: expected_type pairs
+        **kwargs
+            Parameters to validate
+            
+        Raises
+        ------
+        MistAPIError
+            When parameters have incorrect types
+        """
+        if not self._validation_enabled:
+            return
+            
+        type_errors = []
+        
+        for param, expected_type in param_types.items():
+            if param in kwargs and kwargs[param] is not None:
+                if not isinstance(kwargs[param], expected_type):
+                    actual_type = type(kwargs[param]).__name__
+                    expected_name = expected_type.__name__
+                    type_errors.append(f"'{param}' must be {expected_name}, got {actual_type}")
+        
+        if type_errors:
+            error_msg = f"{method_name}() - Parameter type errors: {'; '.join(type_errors)}"
+            raise MistAPIError(error_msg)
 
     def logout(self):
         """Logs out of the cloud, which is not really
