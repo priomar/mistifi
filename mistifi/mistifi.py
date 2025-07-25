@@ -617,37 +617,6 @@ class MistiFi:
 
         return url
 
-    def _params(self, **kwargs):
-        """Parameters configurator for passing into requests as params attribute.
-
-        Meant for parameters that get passed with the `params` attribute of
-        requests.
-
-        Parameters
-        ----------
-        **kwargs
-            Keyword arguments containing params dict
-        params : dict, optional
-            A dict of keyword arguments that gets passed as params
-            to the requests
-
-        Returns
-        -------
-        dict
-            The params dict of parameters to be passed with the request params attribute
-        """
-        logger.info("Calling _params()")
-        logger.info(f"kwargs in: {kwargs}")
-
-        params = {}
-
-        if 'params' in kwargs:
-            params = kwargs['params']
-
-        logger.info(f"Returned params: {params}")
-
-        return params
-
     def resource(self, method, jpayload=None, **kwargs):
         """Executes the HTTP request type defined with the method.
 
@@ -693,8 +662,8 @@ class MistiFi:
         if 'uri' in kwargs:
             kwargs['uri'] = self._sanitize_uri(kwargs['uri'], 'resource')
 
-        # Get the params from the passed in kwargs
-        params = self._params(**kwargs)
+        # Extract query parameters from kwargs
+        params = kwargs.get('params', {})
 
         # Build the full URL to the resource
         resource_url = self._resource_url(**kwargs)
