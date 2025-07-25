@@ -231,6 +231,100 @@ class MistiFi:
         if type_errors:
             error_msg = f"{method_name}() - Parameter type errors: {'; '.join(type_errors)}"
             raise MistAPIError(error_msg)
+    
+    def _sanitize_id(self, id_value, param_name, method_name):
+        """Sanitize ID parameters to prevent injection and format issues.
+        
+        Parameters
+        ----------
+        id_value : str
+            The ID value to sanitize
+        param_name : str
+            Name of the parameter for error context
+        method_name : str
+            Name of the calling method for error context
+            
+        Returns
+        -------
+        str
+            Sanitized ID value
+            
+        Raises
+        ------
+        MistAPIError
+            When ID is invalid or unsafe
+        """
+        if not self._validation_enabled:
+            return id_value
+            
+        if not isinstance(id_value, str):
+            raise MistAPIError(f"{method_name}() - Parameter '{param_name}' must be a string, got {type(id_value).__name__}")
+        
+        # Strip whitespace
+        sanitized = id_value.strip()
+        
+        if not sanitized:
+            raise MistAPIError(f"{method_name}() - Parameter '{param_name}' cannot be empty or whitespace only")
+        
+        # Check for reasonable length (Mist IDs are typically UUIDs ~36 chars)
+        if len(sanitized) > 100:
+            raise MistAPIError(f"{method_name}() - Parameter '{param_name}' too long (max 100 characters)")
+        
+        # Basic injection prevention - no control characters
+        if any(ord(c) < 32 for c in sanitized):
+            raise MistAPIError(f"{method_name}() - Parameter '{param_name}' contains invalid control characters")
+        
+        # No path traversal attempts
+        if '../' in sanitized or '..\\' in sanitized:
+            raise MistAPIError(f"{method_name}() - Parameter '{param_name}' contains invalid path sequences")
+        
+        return sanitized
+    
+    def _sanitize_uri(self, uri_value, method_name):
+        """Sanitize URI parameters.
+        
+        Parameters
+        ----------
+        uri_value : str
+            The URI value to sanitize
+        method_name : str
+            Name of the calling method for error context
+            
+        Returns
+        -------
+        str
+            Sanitized URI value
+            
+        Raises
+        ------
+        MistAPIError
+            When URI is invalid or unsafe
+        """
+        if not self._validation_enabled:
+            return uri_value
+            
+        if not isinstance(uri_value, str):
+            raise MistAPIError(f"{method_name}() - URI must be a string, got {type(uri_value).__name__}")
+        
+        # Strip whitespace
+        sanitized = uri_value.strip()
+        
+        if not sanitized:
+            raise MistAPIError(f"{method_name}() - URI cannot be empty")
+        
+        # Ensure it starts with /
+        if not sanitized.startswith('/'):
+            sanitized = '/' + sanitized
+        
+        # Basic length check
+        if len(sanitized) > 500:
+            raise MistAPIError(f"{method_name}() - URI too long (max 500 characters)")
+        
+        # No control characters
+        if any(ord(c) < 32 for c in sanitized):
+            raise MistAPIError(f"{method_name}() - URI contains invalid control characters")
+        
+        return sanitized
 
     def logout(self):
         """Logs out of the cloud, which is not really
