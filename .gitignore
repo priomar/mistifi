@@ -14,3 +14,4 @@ dist/
 build
 mistifi-*
 .tox/
+REFACTORING_CONTEXT.md
